@@ -126,20 +126,20 @@ trigger:
     seconds: !input p_update_interval
 
 variables:
-  pv_w: "{{ states((input.sensor_pv_power)) | float(0) }}"
-  load_w: "{{ states((input.sensor_load_power)) | float(0) }}"
-  batt_energy_wh: "{{ states((input.sensor_batt_energy_wh)) | float(0) }}"
-  batt_capacity_wh: "{{ input.number_batt_capacity_wh | float(1) }}"
-  batt_charge_w_max: "{{ states((input.sensor_batt_charge_power_max)) | float(0) }}"
-  batt_discharge_w_max: "{{ states((input.sensor_batt_discharge_power_max)) | float(0) }}"
-  export_min_w: "{{ input.p_export_min_w | float(0) }}"
-  export_max_w: "{{ input.p_export_max_w | float(800) }}"
-  deadband_w: "{{ input.p_deadband_w | float(50) }}"
+  pv_w: "{{ states(sensor_pv_power) | float(0) }}"
+  load_w: "{{ states(sensor_load_power) | float(0) }}"
+  batt_energy_wh: "{{ states(sensor_batt_energy_wh) | float(0) }}"
+  batt_capacity_wh: "{{ number_batt_capacity_wh | float(1) }}"
+  batt_charge_w_max: "{{ states(sensor_batt_charge_power_max) | float(0) }}"
+  batt_discharge_w_max: "{{ states(sensor_batt_discharge_power_max) | float(0) }}"
+  export_min_w: "{{ p_export_min_w | float(0) }}"
+  export_max_w: "{{ p_export_max_w | float(800) }}"
+  deadband_w: "{{ p_deadband_w | float(50) }}"
   soc_pct: >
     {% set cap = batt_capacity_wh if batt_capacity_wh > 0 else 1 %}
     {{ (batt_energy_wh / cap * 100) | float(0) | round(1) }}
-  batt_full_pct: "{{ input.p_batt_full_threshold_pct | float(98) }}"
-  reserve_soc_pct: "{{ input.p_safety_min_soc_pct | float(10) }}"
+  batt_full_pct: "{{ p_batt_full_threshold_pct | float(98) }}"
+  reserve_soc_pct: "{{ p_safety_min_soc_pct | float(10) }}"
   surplus_w: "{{ (pv_w - load_w) | float(0) }}"
   batt_has_room: "{{ soc_pct < batt_full_pct }}"
   below_reserve: "{{ soc_pct <= reserve_soc_pct }}"
