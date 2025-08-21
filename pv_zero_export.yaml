@@ -21,21 +21,22 @@ blueprint:
         entity:
           domain: sensor
           device_class: power
-    sensor_batt_energy_kwh:
-      name: Battery Charge (kWh)
-      description: Current stored energy in kWh.
+    sensor_batt_energy_wh:
+      name: Battery Charge (Wh)
+      description: Current stored energy in Wh.
       selector:
         entity:
           domain: sensor
           device_class: energy_storage
-    number_batt_capacity_kwh:
-      name: Battery Capacity (kWh)
-      description: Nominal capacity of the battery in kWh.
+    number_batt_capacity_wh:
+      name: Battery Capacity (Wh)
+      description: Nominal capacity of the battery in Wh.
+      default: 5374
       selector:
         number:
-          min: 0.5
-          max: 200.0
-          step: 0.1
+          min: 500
+          max: 200000
+          step: 10
           mode: box
     sensor_batt_charge_power_max:
       name: Battery Max Charge Power (W)
@@ -95,6 +96,7 @@ blueprint:
           unit_of_measurement: W
     p_batt_full_threshold_pct:
       name: Battery Full Threshold (%)
+      description: SOC percentage considered "full".
       default: 98
       selector:
         number:
@@ -104,6 +106,7 @@ blueprint:
           unit_of_measurement: '%'
     p_safety_min_soc_pct:
       name: Battery Reserve SOC (%)
+      description: Minimum SOC below which export is prevented.
       default: 10
       selector:
         number:
@@ -120,25 +123,25 @@ trigger:
     entity_id:
       - !input sensor_pv_power
       - !input sensor_load_power
-      - !input sensor_batt_energy_kwh
+      - !input sensor_batt_energy_wh
       - !input sensor_batt_charge_power_max
       - !input sensor_batt_discharge_power_max
   - platform: time_pattern
-    seconds: "/{{ iif((inputs.p_update_interval|int) < 2, 2, inputs.p_update_interval|int) }}"
+    seconds: "/10"
 
 variables:
   pv_w: "{{ states((input.sensor_pv_power)) | float(0) }}"
   load_w: "{{ states((input.sensor_load_power)) | float(0) }}"
-  batt_energy_kwh: "{{ states((input.sensor_batt_energy_kwh)) | float(0) }}"
-  batt_capacity_kwh: "{{ input.number_batt_capacity_kwh | float(1) }}"
+  batt_energy_wh: "{{ states((input.sensor_batt_energy_wh)) | float(0) }}"
+  batt_capacity_wh: "{{ input.number_batt_capacity_wh | float(1) }}"
   batt_charge_w_max: "{{ states((input.sensor_batt_charge_power_max)) | float(0) }}"
   batt_discharge_w_max: "{{ states((input.sensor_batt_discharge_power_max)) | float(0) }}"
   export_min_w: "{{ input.p_export_min_w | float(0) }}"
   export_max_w: "{{ input.p_export_max_w | float(800) }}"
   deadband_w: "{{ input.p_deadband_w | float(50) }}"
   soc_pct: >
-    {% set cap = batt_capacity_kwh if batt_capacity_kwh > 0 else 1 %}
-    {{ (batt_energy_kwh / cap * 100) | float(0) | round(1) }}
+    {% set cap = batt_capacity_wh if batt_capacity_wh > 0 else 1 %}
+    {{ (batt_energy_wh / cap * 100) | float(0) | round(1) }}
   batt_full_pct: "{{ input.p_batt_full_threshold_pct | float(98) }}"
   reserve_soc_pct: "{{ input.p_safety_min_soc_pct | float(10) }}"
   surplus_w: "{{ (pv_w - load_w) | float(0) }}"
@@ -161,8 +164,6 @@ variables:
   current_set: "{{ states((input.number_export_target)) | float(0) }}"
   apply_change: "{{ (clamped_target_w - current_set) | abs > deadband_w }}"
 
-condition: []
-
 action:
   - choose:
       - conditions: "{{ apply_change }}"
@@ -172,4 +173,3 @@ action:
               entity_id: !input number_export_target
             data:
               value: "{{ clamped_target_w }}"
-    default: []
