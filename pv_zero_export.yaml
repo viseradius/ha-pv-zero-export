@@ -5,7 +5,7 @@ blueprint:
     self-consumption. Surplus first charges the battery, remaining power is exported
     up to 800 W.
   domain: automation
-  source_url: https://github.com/yourusername/home-assistant-pv-zero-export
+  source_url: https://github.com/viseradius/ha-pv-zero-export
   input:
     sensor_pv_power:
       name: PV Production Power (W)
@@ -31,7 +31,6 @@ blueprint:
     number_batt_capacity_wh:
       name: Battery Capacity (Wh)
       description: Nominal capacity of the battery in Wh.
-      default: 5374
       selector:
         number:
           min: 500
@@ -64,7 +63,7 @@ blueprint:
       selector:
         number:
           min: 2
-          max: 60
+          max: 300
           step: 1
           unit_of_measurement: s
     p_deadband_w:
@@ -127,7 +126,7 @@ trigger:
       - !input sensor_batt_charge_power_max
       - !input sensor_batt_discharge_power_max
   - platform: time_pattern
-    seconds: "/10"
+    seconds: "{{ input.p_update_interval }}"
 
 variables:
   pv_w: "{{ states((input.sensor_pv_power)) | float(0) }}"

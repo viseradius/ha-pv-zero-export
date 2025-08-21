@@ -18,8 +18,8 @@ The goal is to achieve **zero export** while maximizing **self-consumption**.
 - Entities required:
   - **PV production power (W)**
   - **Household consumption power (W)**
-  - **Battery charge (kWh)**
-  - **Battery capacity (kWh)**
+  - **Battery charge (Wh)**
+  - **Battery capacity (Wh)**
   - **Battery max charge power (W)**
   - **Battery max discharge power (W)**
 - A controllable **Number entity** for grid export (range 0–800 W),  
