@@ -126,7 +126,7 @@ trigger:
       - !input sensor_batt_charge_power_max
       - !input sensor_batt_discharge_power_max
   - platform: time_pattern
-    seconds: "{{ input.p_update_interval }}"
+    seconds:  !input p_update_interval
 
 variables:
   pv_w: "{{ states((input.sensor_pv_power)) | float(0) }}"
