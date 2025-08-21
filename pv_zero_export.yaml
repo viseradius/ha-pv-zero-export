@@ -1,0 +1,175 @@
+blueprint:
+  name: PV Zero Export & Self-Consumption (0–800 W)
+  description: >
+    Dynamically controls grid export power to achieve zero export and maximize
+    self-consumption. Surplus first charges the battery, remaining power is exported
+    up to 800 W.
+  domain: automation
+  source_url: https://github.com/yourusername/home-assistant-pv-zero-export
+  input:
+    sensor_pv_power:
+      name: PV Production Power (W)
+      description: Current PV generation in Watts.
+      selector:
+        entity:
+          domain: sensor
+          device_class: power
+    sensor_load_power:
+      name: Household Load (W)
+      description: Current household power consumption in Watts.
+      selector:
+        entity:
+          domain: sensor
+          device_class: power
+    sensor_batt_energy_kwh:
+      name: Battery Charge (kWh)
+      description: Current stored energy in kWh.
+      selector:
+        entity:
+          domain: sensor
+          device_class: energy
+    number_batt_capacity_kwh:
+      name: Battery Capacity (kWh)
+      description: Nominal capacity of the battery in kWh.
+      selector:
+        number:
+          min: 0.5
+          max: 200.0
+          step: 0.1
+          mode: box
+    sensor_batt_charge_power_max:
+      name: Battery Max Charge Power (W)
+      description: Maximum charging power of the battery in Watts.
+      selector:
+        entity:
+          domain: sensor
+          device_class: power
+    sensor_batt_discharge_power_max:
+      name: Battery Max Discharge Power (W)
+      description: Maximum discharge power of the battery in Watts.
+      selector:
+        entity:
+          domain: sensor
+          device_class: power
+    number_export_target:
+      name: Grid Export Target (Number 0–800 W)
+      description: Number entity that sets the desired grid export power.
+      selector:
+        entity:
+          domain: number
+    p_update_interval:
+      name: Update Interval (seconds)
+      default: 10
+      selector:
+        number:
+          min: 2
+          max: 60
+          step: 1
+          unit_of_measurement: s
+    p_deadband_w:
+      name: Deadband / Hysteresis (W)
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 10
+          unit_of_measurement: W
+    p_export_min_w:
+      name: Minimum Export (W)
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 800
+          step: 10
+          unit_of_measurement: W
+    p_export_max_w:
+      name: Maximum Export (W)
+      default: 800
+      selector:
+        number:
+          min: 0
+          max: 800
+          step: 10
+          unit_of_measurement: W
+    p_batt_full_threshold_pct:
+      name: Battery Full Threshold (%)
+      default: 98
+      selector:
+        number:
+          min: 70
+          max: 100
+          step: 1
+          unit_of_measurement: '%'
+    p_safety_min_soc_pct:
+      name: Battery Reserve SOC (%)
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 50
+          step: 1
+          unit_of_measurement: '%'
+
+mode: single
+max_exceeded: silent
+
+trigger:
+  - platform: state
+    entity_id:
+      - !input sensor_pv_power
+      - !input sensor_load_power
+      - !input sensor_batt_energy_kwh
+      - !input sensor_batt_charge_power_max
+      - !input sensor_batt_discharge_power_max
+  - platform: time_pattern
+    seconds: "/{{ iif((inputs.p_update_interval|int) < 2, 2, inputs.p_update_interval|int) }}"
+
+variables:
+  pv_w: "{{ states((input.sensor_pv_power)) | float(0) }}"
+  load_w: "{{ states((input.sensor_load_power)) | float(0) }}"
+  batt_energy_kwh: "{{ states((input.sensor_batt_energy_kwh)) | float(0) }}"
+  batt_capacity_kwh: "{{ input.number_batt_capacity_kwh | float(1) }}"
+  batt_charge_w_max: "{{ states((input.sensor_batt_charge_power_max)) | float(0) }}"
+  batt_discharge_w_max: "{{ states((input.sensor_batt_discharge_power_max)) | float(0) }}"
+  export_min_w: "{{ input.p_export_min_w | float(0) }}"
+  export_max_w: "{{ input.p_export_max_w | float(800) }}"
+  deadband_w: "{{ input.p_deadband_w | float(50) }}"
+  soc_pct: >
+    {% set cap = batt_capacity_kwh if batt_capacity_kwh > 0 else 1 %}
+    {{ (batt_energy_kwh / cap * 100) | float(0) | round(1) }}
+  batt_full_pct: "{{ input.p_batt_full_threshold_pct | float(98) }}"
+  reserve_soc_pct: "{{ input.p_safety_min_soc_pct | float(10) }}"
+  surplus_w: "{{ (pv_w - load_w) | float(0) }}"
+  batt_has_room: "{{ soc_pct < batt_full_pct }}"
+  below_reserve: "{{ soc_pct <= reserve_soc_pct }}"
+  raw_target_w: >
+    {% if surplus_w <= 0 %}
+      0
+    {% else %}
+      {% if batt_has_room and not below_reserve %}
+        {% set rest = surplus_w - batt_charge_w_max %}
+        {{ [rest, 0] | max }}
+      {% else %}
+        {{ surplus_w }}
+      {% endif %}
+    {% endif %}
+  clamped_target_w: >
+    {% set v = [raw_target_w, export_min_w] | max %}
+    {{ [v, export_max_w] | min | round(0) }}
+  current_set: "{{ states((input.number_export_target)) | float(0) }}"
+  apply_change: "{{ (clamped_target_w - current_set) | abs > deadband_w }}"
+
+condition: []
+
+action:
+  - choose:
+      - conditions: "{{ apply_change }}"
+        sequence:
+          - service: number.set_value
+            target:
+              entity_id: !input number_export_target
+            data:
+              value: "{{ clamped_target_w }}"
+    default: []
