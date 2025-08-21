@@ -27,7 +27,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
-          device_class: energy
+          device_class: energy_storage
     number_batt_capacity_kwh:
       name: Battery Capacity (kWh)
       description: Nominal capacity of the battery in kWh.
